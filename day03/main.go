@@ -9,25 +9,36 @@ import (
 )
 
 func main() {
-	part1 := 0
+	part1, part2 := 0, 0
 
 	for line := range input.New().Lines() {
+		part1 += maximizeLine(line, 2)
+		part2 += maximizeLine(line, 12)
+	}
 
-	Tens:
-		for tens := '9'; tens >= '1'; tens-- {
-			idx := strings.IndexRune(line[:len(line)-1], tens)
-			if idx == -1 {
-				continue
-			}
+	fmt.Println("part 1:", part1)
+	fmt.Println("part 2:", part2)
+}
 
-			for ones := '9'; ones >= '0'; ones-- {
-				if strings.IndexRune(line[idx+1:], ones) != -1 {
-					part1 += conv.Atoi(fmt.Sprintf("%c%c", tens, ones))
-					break Tens
-				}
-			}
+func maximizeLine(line string, numDigits int) int {
+	ret := make([]byte, numDigits)
+
+	for i := range numDigits {
+		line = maximize(line, numDigits-i)
+		ret[i], line = line[0], line[1:]
+	}
+
+	return conv.Atoi(string(ret))
+}
+
+// digitLen is how much space we need to make sure to leave at the end
+func maximize(s string, digitLen int) string {
+	for i := '9'; i >= '0'; i-- {
+		idx := strings.IndexRune(s[:len(s)-(digitLen-1)], i)
+		if idx >= 0 {
+			return s[idx:]
 		}
 	}
 
-	fmt.Println(part1)
+	panic("unreachable")
 }
