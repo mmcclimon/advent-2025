@@ -6,7 +6,7 @@ import (
 	"github.com/mmcclimon/advent-2025/advent/input"
 )
 
-type Grid = map[rc]struct{}
+type Grid map[rc]struct{}
 type rc struct{ r, c int }
 
 func main() {
@@ -19,7 +19,7 @@ func main() {
 		}
 	}
 
-	toRemove := removableRolls(grid)
+	toRemove := grid.removableRolls()
 	fmt.Println("part 1:", len(toRemove))
 
 	part2 := 0
@@ -31,16 +31,16 @@ func main() {
 			delete(grid, pos)
 		}
 
-		toRemove = removableRolls(grid)
+		toRemove = grid.removableRolls()
 	}
 
 	fmt.Println("part 2:", part2)
 }
 
-func removableRolls(grid Grid) []rc {
+func (g Grid) removableRolls() []rc {
 	var ret []rc
-	for pos := range grid {
-		neighbors := neighborsFor(grid, pos)
+	for pos := range g {
+		neighbors := g.neighborsFor(pos)
 		if len(neighbors) < 4 {
 			ret = append(ret, pos)
 		}
@@ -50,14 +50,13 @@ func removableRolls(grid Grid) []rc {
 }
 
 // returns a list of positions occupied in the grid
-func neighborsFor(grid Grid, pos rc) []rc {
+func (g Grid) neighborsFor(pos rc) []rc {
 	ret := make([]rc, 0, 8)
 
 	for _, r := range []int{pos.r - 1, pos.r, pos.r + 1} {
 		for _, c := range []int{pos.c - 1, pos.c, pos.c + 1} {
 			check := rc{r, c}
-			_, ok := grid[check]
-			if ok && check != pos {
+			if _, ok := g[check]; ok && check != pos {
 				ret = append(ret, check)
 			}
 		}
