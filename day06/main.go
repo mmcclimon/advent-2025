@@ -14,54 +14,78 @@ import (
 
 func main() {
 	lines := slices.Collect(input.New().Lines())
+	ops := makeOps(lines[len(lines)-1])
+	lines = lines[:len(lines)-1]
 
-	part1(lines)
-	part2(lines)
+	part1(lines, ops)
+	part2(lines, ops)
 }
 
-func part1(lines []string) {
-	var cols [][]int
+type Op struct {
+	repr  string
+	apply func(iter.Seq[int]) int
+}
 
-	first := conv.ToInts(strings.Fields(lines[0]))
-	for _, n := range first {
-		cols = append(cols, []int{n})
-	}
+func (op Op) String() string {
+	return op.repr
+}
 
-	for _, line := range lines[1 : len(lines)-1] {
-		nums := conv.ToInts(strings.Fields(line))
-		for i, n := range nums {
-			cols[i] = append(cols[i], n)
+func makeOps(line string) []Op {
+	var ret []Op
+
+	for _, s := range strings.Fields(line) {
+		op := Op{repr: s}
+
+		switch s {
+		case "+":
+			op.apply = mathx.Sum
+		case "*":
+			op.apply = mathx.Product
+		default:
+			panic("bad op: " + s)
 		}
+
+		ret = append(ret, op)
 	}
 
+	return ret
+}
+
+func part1(lines []string, ops []Op) {
 	total := 0
-	ops := strings.Fields(lines[len(lines)-1])
-	for i, op := range ops {
-		f := reducerFor(op)
-		total += f(slices.Values(cols[i]))
+
+	split := make([][]int, len(lines))
+	for i, line := range lines {
+		split[i] = conv.ToInts(strings.Fields(line))
+	}
+
+	for fieldNum := range len(split[0]) {
+		total += ops[fieldNum].apply(func(yield func(n int) bool) {
+			for _, line := range split {
+				yield(line[fieldNum])
+			}
+		})
 	}
 
 	fmt.Println("part 1:", total)
-
 }
 
-func part2(lines []string) {
+// The problem says that this math should be done right to left, but this
+// doesn't matter even a little bit, so we just do it left to right.
+func part2(lines []string, ops []Op) {
 	total := 0
-	ops := strings.Fields(lines[len(lines)-1])
 
 	var buf []int
 
 	flush := func() {
-		f := reducerFor(ops[len(ops)-1])
-		total += f(slices.Values(buf))
-
+		total += ops[0].apply(slices.Values(buf))
 		buf = nil
-		ops = ops[:len(ops)-1]
+		ops = ops[1:]
 	}
 
-	for i := len(lines[0]) - 1; i >= 0; i-- {
+	for i := range lines[0] {
 		var s []byte
-		for _, line := range lines[:len(lines)-1] {
+		for _, line := range lines {
 			s = append(s, line[i])
 		}
 
@@ -78,15 +102,4 @@ func part2(lines []string) {
 	flush()
 
 	fmt.Println("part 2:", total)
-}
-
-func reducerFor(op string) func(iter.Seq[int]) int {
-	switch op {
-	case "+":
-		return mathx.Sum
-	case "*":
-		return mathx.Product
-	}
-
-	panic("bad op: " + op)
 }
