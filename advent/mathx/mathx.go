@@ -27,6 +27,15 @@ func Sum[T Numeric](seq iter.Seq[T]) T {
 	return sum
 }
 
+func Product[T Numeric](seq iter.Seq[T]) T {
+	sum := T(1)
+	for n := range seq {
+		sum *= n
+	}
+
+	return sum
+}
+
 func GCD[T constraints.Integer](m, n T) T {
 	if n == 0 {
 		return m
