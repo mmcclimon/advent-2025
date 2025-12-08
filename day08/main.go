@@ -35,9 +35,30 @@ func main() {
 		}
 	}
 
-	for i := range 1000 {
-		fmt.Println("connection", i+1)
-		makeConnection(boxes)
+	dists := make(map[string]float64)
+
+	// calculate distances
+	for _, left := range boxes {
+		for _, right := range boxes {
+			id := idFor([]Point{left.pos, right.pos})
+			_, havePair := dists[id]
+
+			if left == right || havePair {
+				continue
+			}
+
+			dist := left.distanceTo(right)
+			dists[id] = dist
+		}
+	}
+
+	strs := slices.SortedFunc(maps.Keys(dists), func(a, b string) int {
+		return cmp.Compare(dists[a], dists[b])
+	})
+
+	for range 1000 {
+		makeConnection(boxes, strs[0])
+		strs = strs[1:]
 	}
 
 	// calculate the circuits
@@ -46,26 +67,8 @@ func main() {
 	fmt.Println("walking circuits")
 	// this is really dumb
 	for _, box := range boxes {
-		/*
-			fmt.Printf("%q\n", box.pos)
-			for pos := range box.direct.Iter() {
-				fmt.Printf("%q -- %q\n", box.pos, pos)
-			}
-		*/
 		box.walkCircuits(boxes)
-
-		/*
-			fmt.Printf("BOX %s\n", box.pos)
-			for pos := range box.circuit.Iter() {
-				fmt.Printf("  %s\n", pos)
-			}
-			fmt.Printf("  id: %s\n", box.circuitID())
-		*/
-	}
-
-	for _, box := range boxes {
 		circuits[box.circuitID()] = box.circuitLen()
-		// fmt.Println(box)
 	}
 
 	ordered := slices.SortedFunc(maps.Keys(circuits), func(a, b string) int {
@@ -82,31 +85,43 @@ func main() {
 
 }
 
-func makeConnection(boxes map[Point]*Box) {
-	best := math.Inf(1)
-	var bestPair []*Box
+func makeConnection(boxes map[Point]*Box, pair string) {
+	strs := strings.Split(pair, "|")
+	a := boxFromString(boxes, strs[0])
+	b := boxFromString(boxes, strs[1])
+	a.connectTo(b)
 
-	for _, src := range boxes {
-		for _, dst := range boxes {
-			if src == dst || src.direct.Contains(dst.pos) {
-				continue
-			}
+	/*
+		best := math.Inf(1)
+		var bestPair []*Box
 
-			dist := src.distanceTo(dst)
-			if dist < best {
-				best = dist
-				bestPair = []*Box{src, dst}
+		for _, src := range boxes {
+			for _, dst := range boxes {
+				if src == dst || src.direct.Contains(dst.pos) {
+					continue
+				}
+
+				dist := src.distanceTo(dst)
+				if dist < best {
+					best = dist
+					bestPair = []*Box{src, dst}
+				}
 			}
 		}
-	}
 
-	a, b := bestPair[0], bestPair[1]
-	// fmt.Println("connect:", a, b)
-	a.connectTo(b)
-	// b.connectTo(a)
+		a, b := bestPair[0], bestPair[1]
+		// fmt.Println("connect:", a, b)
+		a.connectTo(b)
+		// b.connectTo(a)
 
-	// fmt.Printf("  connections for %s: %v\n", a.pos, a.connections.ToSlice())
-	// fmt.Printf("  connections for %s: %v\n", b.pos, b.connections.ToSlice())
+		// fmt.Printf("  connections for %s: %v\n", a.pos, a.connections.ToSlice())
+		// fmt.Printf("  connections for %s: %v\n", b.pos, b.connections.ToSlice())
+	*/
+}
+
+func boxFromString(boxes map[Point]*Box, str string) *Box {
+	pos := conv.ToInts(strings.Split(str, ","))
+	return boxes[Point{pos[0], pos[1], pos[2]}]
 }
 
 func (p Point) String() string {
@@ -143,21 +158,14 @@ func (src *Box) connectTo(dst *Box) {
 
 // NB this changes as connections change
 func (b *Box) circuitID() string {
-	members := b.circuit.ToSlice()
-	slices.SortFunc(members, func(a, b Point) int {
-		if x := cmp.Compare(a.x, b.x); x != 0 {
-			return x
-		}
+	return idFor(b.circuit.ToSlice())
+}
 
-		if y := cmp.Compare(a.y, b.y); y != 0 {
-			return y
-		}
+func idFor(points []Point) string {
+	slices.SortFunc(points, sortPoints)
 
-		return cmp.Compare(a.z, b.z)
-	})
-
-	strs := make([]string, len(members))
-	for i, pos := range members {
+	strs := make([]string, len(points))
+	for i, pos := range points {
 		strs[i] = pos.String()
 	}
 
@@ -187,23 +195,17 @@ func (box *Box) walkCircuits(boxes map[Point]*Box) {
 		}
 	}
 
-	// fmt.Printf("for box %s:\n", box.pos)
-	// for pos := range seen.Iter() {
-	// 	fmt.Printf("  %s\n", pos)
-	// }
-
 	box.circuit = seen
+}
 
-	/*
-			procedure DFS_iterative(G, v) is
-		    let S be a stack
-		    S.push(v)
-		    while S is not empty do
-		        v = S.pop()
-		        if v is not labeled as discovered then
-		            label v as discovered
-		            for all edges from v to w in G.adjacentEdges(v) do
-		                S.push(w)
-	*/
+func sortPoints(a, b Point) int {
+	if x := cmp.Compare(a.x, b.x); x != 0 {
+		return x
+	}
 
+	if y := cmp.Compare(a.y, b.y); y != 0 {
+		return y
+	}
+
+	return cmp.Compare(a.z, b.z)
 }
