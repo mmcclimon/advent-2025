@@ -28,7 +28,11 @@ func NewSetFromIter[T comparable](iterator iter.Seq[T]) Set[T] {
 }
 
 func (s Set[T]) Add(elems ...T) {
-	for _, elem := range elems {
+	s.AddIter(slices.Values(elems))
+}
+
+func (s Set[T]) AddIter(iter iter.Seq[T]) {
+	for elem := range iter {
 		s[elem] = unit
 	}
 }
