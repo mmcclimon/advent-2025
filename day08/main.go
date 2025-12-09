@@ -38,14 +38,11 @@ func main() {
 	dists := make(map[string]float64)
 
 	// calculate distances
-	for _, left := range boxes {
-		for _, right := range boxes {
+	boxSlice := slices.Collect(maps.Values(boxes))
+	for i := range boxSlice {
+		for j := i + 1; j < len(boxSlice); j++ {
+			left, right := boxSlice[i], boxSlice[j]
 			id := idFor([]Point{left.pos, right.pos})
-			_, havePair := dists[id]
-
-			if left == right || havePair {
-				continue
-			}
 
 			dist := left.distanceTo(right)
 			dists[id] = dist
@@ -56,20 +53,17 @@ func main() {
 		return cmp.Compare(dists[a], dists[b])
 	})
 
-	for range 1000 {
+	limit := 1000
+	if len(boxes) == 20 {
+		limit = 10
+	}
+
+	for range limit {
 		makeConnection(boxes, strs[0])
 		strs = strs[1:]
 	}
 
-	// calculate the circuits
-	circuits := make(map[string]int)
-
-	fmt.Println("walking circuits")
-	// this is really dumb
-	for _, box := range boxes {
-		box.walkCircuits(boxes)
-		circuits[box.circuitID()] = box.circuitLen()
-	}
+	circuits := makeCircuits(boxes)
 
 	ordered := slices.SortedFunc(maps.Keys(circuits), func(a, b string) int {
 		return cmp.Compare(circuits[b], circuits[a])
@@ -83,6 +77,34 @@ func main() {
 
 	fmt.Println("part 1:", total)
 
+	var mostRecent string
+
+	// This is _hilariously_ slow.
+	for len(circuits) > 1 {
+		mostRecent = strs[0]
+		makeConnection(boxes, mostRecent)
+		strs = strs[1:]
+		circuits = makeCircuits(boxes)
+		fmt.Println(len(circuits), mostRecent)
+	}
+
+	lastPair := strings.Split(mostRecent, "|")
+	a := boxFromString(boxes, lastPair[0])
+	b := boxFromString(boxes, lastPair[1])
+	fmt.Println("part 2:", a.pos.x*b.pos.x)
+
+}
+
+func makeCircuits(boxes map[Point]*Box) map[string]int {
+	circuits := make(map[string]int)
+	// fmt.Println("walking circuits")
+	// this is really dumb
+	for _, box := range boxes {
+		box.walkCircuits(boxes)
+		circuits[box.circuitID()] = box.circuitLen()
+	}
+
+	return circuits
 }
 
 func makeConnection(boxes map[Point]*Box, pair string) {
@@ -90,33 +112,6 @@ func makeConnection(boxes map[Point]*Box, pair string) {
 	a := boxFromString(boxes, strs[0])
 	b := boxFromString(boxes, strs[1])
 	a.connectTo(b)
-
-	/*
-		best := math.Inf(1)
-		var bestPair []*Box
-
-		for _, src := range boxes {
-			for _, dst := range boxes {
-				if src == dst || src.direct.Contains(dst.pos) {
-					continue
-				}
-
-				dist := src.distanceTo(dst)
-				if dist < best {
-					best = dist
-					bestPair = []*Box{src, dst}
-				}
-			}
-		}
-
-		a, b := bestPair[0], bestPair[1]
-		// fmt.Println("connect:", a, b)
-		a.connectTo(b)
-		// b.connectTo(a)
-
-		// fmt.Printf("  connections for %s: %v\n", a.pos, a.connections.ToSlice())
-		// fmt.Printf("  connections for %s: %v\n", b.pos, b.connections.ToSlice())
-	*/
 }
 
 func boxFromString(boxes map[Point]*Box, str string) *Box {
