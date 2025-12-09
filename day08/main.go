@@ -15,14 +15,55 @@ import (
 
 type Point struct{ x, y, z int }
 
+type Pair struct{ left, right Point }
+
 type Box struct {
-	pos     Point
-	dists   map[Point]float64
-	direct  collections.Set[Point]
-	circuit collections.Set[Point]
+	pos    Point
+	dists  map[Point]float64
+	direct collections.Set[Point]
 }
 
+type Registry map[Point]*Box
+
 func main() {
+	registry := readBoxes()
+	toConnect := registry.makePairs()
+
+	limit := 1000
+	// special-case the example
+	if len(registry) == 20 {
+		limit = 10
+	}
+
+	for range limit {
+		registry.connect(toConnect[0])
+		toConnect = toConnect[1:]
+	}
+
+	// Part 1: find the 3 biggest circuits
+	circuits := registry.makeCircuits()
+	slices.Sort(circuits)
+	slices.Reverse(circuits)
+
+	part1 := circuits[0] * circuits[1] * circuits[2]
+	fmt.Println("part 1:", part1)
+
+	// Part 2: go unti there's only one
+	var part2 int
+
+	for len(circuits) > 1 {
+		pair := toConnect[0]
+		toConnect = toConnect[1:]
+
+		registry.connect(pair)
+		part2 = pair.left.x * pair.right.x
+		circuits = registry.makeCircuits()
+	}
+
+	fmt.Println("part 2:", part2)
+}
+
+func readBoxes() Registry {
 	boxes := make(map[Point]*Box)
 
 	for line := range input.New().Lines() {
@@ -34,89 +75,61 @@ func main() {
 			direct: collections.NewSet[Point](),
 		}
 	}
+	return boxes
+}
 
-	dists := make(map[string]float64)
+func (r Registry) GetPair(pair Pair) (*Box, *Box) {
+	return r[pair.left], r[pair.right]
+}
+
+func (r Registry) makePairs() []Pair {
+	dists := make(map[Pair]float64)
 
 	// calculate distances
-	boxSlice := slices.Collect(maps.Values(boxes))
-	for i := range boxSlice {
-		for j := i + 1; j < len(boxSlice); j++ {
-			left, right := boxSlice[i], boxSlice[j]
-			id := idFor([]Point{left.pos, right.pos})
+	slice := slices.Collect(maps.Values(r))
+	for i := range slice {
+		for j := i + 1; j < len(slice); j++ {
+			left, right := slice[i], slice[j]
+			pair := newPair(left.pos, right.pos)
 
 			dist := left.distanceTo(right)
-			dists[id] = dist
+			dists[pair] = dist
 		}
 	}
 
-	strs := slices.SortedFunc(maps.Keys(dists), func(a, b string) int {
+	// then sort the pairs by distance
+	return slices.SortedFunc(maps.Keys(dists), func(a, b Pair) int {
 		return cmp.Compare(dists[a], dists[b])
 	})
-
-	limit := 1000
-	if len(boxes) == 20 {
-		limit = 10
-	}
-
-	for range limit {
-		makeConnection(boxes, strs[0])
-		strs = strs[1:]
-	}
-
-	circuits := makeCircuits(boxes)
-
-	ordered := slices.SortedFunc(maps.Keys(circuits), func(a, b string) int {
-		return cmp.Compare(circuits[b], circuits[a])
-	})
-
-	total := 1
-
-	for _, k := range ordered[:3] {
-		total *= circuits[k]
-	}
-
-	fmt.Println("part 1:", total)
-
-	var mostRecent string
-
-	// This is _hilariously_ slow.
-	for len(circuits) > 1 {
-		mostRecent = strs[0]
-		makeConnection(boxes, mostRecent)
-		strs = strs[1:]
-		circuits = makeCircuits(boxes)
-		fmt.Println(len(circuits), mostRecent)
-	}
-
-	lastPair := strings.Split(mostRecent, "|")
-	a := boxFromString(boxes, lastPair[0])
-	b := boxFromString(boxes, lastPair[1])
-	fmt.Println("part 2:", a.pos.x*b.pos.x)
-
 }
 
-func makeCircuits(boxes map[Point]*Box) map[string]int {
-	circuits := make(map[string]int)
-	// fmt.Println("walking circuits")
-	// this is really dumb
-	for _, box := range boxes {
-		box.walkCircuits(boxes)
-		circuits[box.circuitID()] = box.circuitLen()
+func (r Registry) makeCircuits() []int {
+	var circuits []int
+
+	todo := collections.NewSetFromIter(maps.Keys(r))
+	for len(todo) > 0 {
+		box := r[todo.Pop()]
+
+		// walkCircuit returns the set of points in the circuit; we can delete
+		// those from the todo list because we've already seen them all.
+		circuit := box.walkCircuit(r)
+		circuits = append(circuits, len(circuit))
+		todo.DeleteIter(circuit.Iter())
 	}
 
 	return circuits
 }
 
-func makeConnection(boxes map[Point]*Box, pair string) {
-	strs := strings.Split(pair, "|")
-	a := boxFromString(boxes, strs[0])
-	b := boxFromString(boxes, strs[1])
-	a.connectTo(b)
+func (r Registry) connect(pair Pair) {
+	r[pair.left].connectTo(r[pair.right])
 }
 
-func boxFromString(boxes map[Point]*Box, str string) *Box {
-	pos := conv.ToInts(strings.Split(str, ","))
-	return boxes[Point{pos[0], pos[1], pos[2]}]
+func newPair(a, b Point) Pair {
+	if sortPoints(a, b) < 0 {
+		return Pair{a, b}
+	}
+
+	return Pair{b, a}
 }
 
 func (p Point) String() string {
@@ -151,27 +164,7 @@ func (src *Box) connectTo(dst *Box) {
 	dst.direct.Add(src.pos)
 }
 
-// NB this changes as connections change
-func (b *Box) circuitID() string {
-	return idFor(b.circuit.ToSlice())
-}
-
-func idFor(points []Point) string {
-	slices.SortFunc(points, sortPoints)
-
-	strs := make([]string, len(points))
-	for i, pos := range points {
-		strs[i] = pos.String()
-	}
-
-	return strings.Join(strs, "|")
-}
-
-func (b *Box) circuitLen() int {
-	return len(b.circuit)
-}
-
-func (box *Box) walkCircuits(boxes map[Point]*Box) {
+func (box *Box) walkCircuit(boxes map[Point]*Box) collections.Set[Point] {
 	// dfs on the edges
 	s := collections.NewDeque[Point]()
 	seen := collections.NewSet[Point]()
@@ -190,7 +183,7 @@ func (box *Box) walkCircuits(boxes map[Point]*Box) {
 		}
 	}
 
-	box.circuit = seen
+	return seen
 }
 
 func sortPoints(a, b Point) int {

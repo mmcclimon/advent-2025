@@ -41,6 +41,12 @@ func (s Set[T]) Delete(elem T) {
 	delete(s, elem)
 }
 
+func (s Set[T]) DeleteIter(iter iter.Seq[T]) {
+	for elem := range iter {
+		delete(s, elem)
+	}
+}
+
 func (s Set[T]) Contains(elem T) bool {
 	if s == nil {
 		return false
