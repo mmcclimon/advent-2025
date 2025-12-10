@@ -2,6 +2,7 @@ package mathx
 
 import (
 	"iter"
+	"math"
 
 	"golang.org/x/exp/constraints"
 )
@@ -51,4 +52,8 @@ func LCM[T constraints.Integer](m, n T) T {
 // omg why can't all languages just provide this
 func Mod[T constraints.Integer](m, n T) T {
 	return (m%n + n) % n
+}
+
+func Pow[T constraints.Integer](m, n T) T {
+	return T(math.Pow(float64(m), float64(n)))
 }
