@@ -1,17 +1,23 @@
 package main
 
 import (
+	"cmp"
 	"fmt"
+	"maps"
+	"math"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/mmcclimon/advent-2025/advent/assert"
 	"github.com/mmcclimon/advent-2025/advent/conv"
 	"github.com/mmcclimon/advent-2025/advent/input"
 	"github.com/mmcclimon/advent-2025/advent/mathx"
+	"github.com/mmcclimon/advent-2025/advent/operator"
 )
 
 type xy struct{ x, y int }
+type Rect struct{ l, r xy }
 
 func main() {
 	var points []xy
@@ -20,26 +26,41 @@ func main() {
 		points = append(points, xy{ints[0], ints[1]})
 	}
 
-	// part1(points)
-	printSVG(points, "out.svg")
-	part2(points)
+	rects := part1(points)
+	// printSVG(points, "out.svg")
+	part2(points, rects)
 }
 
-func part1(points []xy) {
-	var best int
+//nolint:unused
+func part1(points []xy) []Rect {
+	all := make(map[Rect]int)
 
 	for i, src := range points {
 		for j := i + 1; j < len(points); j++ {
 			dst := points[j]
 
-			square := (1 + mathx.Abs(dst.x-src.x)) * (1 + mathx.Abs(dst.y-src.y))
-			best = max(best, square)
+			rect := Rect{
+				l: xy{min(src.x, dst.x), min(src.y, dst.y)},
+				r: xy{max(src.x, dst.x), max(src.y, dst.y)},
+			}
+
+			all[rect] = rect.Area()
 		}
 	}
 
-	fmt.Println("part 1:", best)
+	rects := slices.SortedFunc(maps.Keys(all), func(a, b Rect) int {
+		return cmp.Compare(all[b], all[a])
+	})
+
+	fmt.Println("part 1:", rects[0].Area())
+	return rects
 }
 
+func (rect Rect) Area() int {
+	return (1 + rect.r.x - rect.l.x) * (1 + rect.r.y - rect.l.y)
+}
+
+// nolint
 func printSVG(points []xy, filename string) {
 	f, err := os.Create(filename)
 	assert.Nil(err)
@@ -54,50 +75,102 @@ func printSVG(points []xy, filename string) {
 	fmt.Fprintln(f, `</svg>`)
 }
 
-func part2(points []xy) {
-	return
+func part2(points []xy, rects []Rect) {
 	// p := points[0]
 	// minX, maxX, minY, maxY := p.x, p.x, p.y, p.y
+rectLoop:
+	for _, rect := range rects {
+		fmt.Println("check rect", rect, rect.Area())
 
-	for _, point := range points {
-		fmt.Printf("%d,%d\n", point.x, point.y)
-
-		/*
+		for i, point := range points {
 			idx := operator.CrummyTernary(i+1 == len(points), 0, i+1)
 			next := points[idx]
 
-			left, right := point, next
-			if point.x == next.x && next.y < point.y {
-				left, right = right, left
-			} else if point.y == next.y && next.x < point.x {
-				left, right = right, left
+			a := xy{min(point.x, next.x), min(point.y, next.y)}
+			b := xy{max(point.x, next.x), max(point.y, next.y)}
+
+			fmt.Println("  check", a, b)
+
+			// this line intersects with our rectangle
+			if a.x < rect.r.x && // line starts left of rect's right edge
+				a.y < rect.r.x && // line starts above rect's bottom edge
+				b.x > rect.l.x && // line ends right of rect's left edge
+				b.y > rect.l.y { // line ends below rect's top edge
+				continue rectLoop
 			}
 
-			dist := math.Sqrt(
-				math.Pow(float64(left.x-right.x), 2) +
-					math.Pow(float64(left.y-right.y), 2),
-			)
-			// dumb special casing
-			if dist > 2000 {
-				fmt.Println(dist, left, right)
+		}
 
+		fmt.Println("good?", rect.Area())
+		break
+	}
+
+}
+
+//nolint:unused
+func part2bis(points []xy) {
+	var holeY []int
+
+	for i, point := range points {
+		idx := operator.CrummyTernary(i+1 == len(points), 0, i+1)
+		next := points[idx]
+
+		dist := math.Sqrt(
+			math.Pow(float64(point.x-next.x), 2) +
+				math.Pow(float64(point.y-next.y), 2),
+		)
+		// dumb special casing
+		if dist > 2000 {
+			holeY = append(holeY, point.y)
+			fmt.Println("horizontal:", point, next)
+		}
+	}
+
+	slices.Sort(holeY)
+	top, bottom := holeY[0], holeY[1]
+	fmt.Println(top, bottom)
+
+	var best int
+
+	for i, src := range points {
+		for j := i + 1; j < len(points); j++ {
+			dst := points[j]
+
+			inTop := src.y <= top && dst.y <= top
+			inBottom := src.y >= bottom && dst.y >= bottom
+
+			if !inTop && !inBottom {
+				continue
 			}
 
-			// This is stupid, but one of these loops will always be a no-op so who cares.
-			for x := left.x; x <= right.x; x++ {
-				for y := left.y; y <= right.y; y++ {
-					allPoints.Add(xy{x, y})
-				}
+			// if src.y <= top && dst.y >= bottom || src.y >= bottom && dst.y <= top {
+			// 	continue
+			// }
+
+			square := (1 + mathx.Abs(dst.x-src.x)) * (1 + mathx.Abs(dst.y-src.y))
+			best = max(best, square)
+
+			if best == square {
+				fmt.Println(best, src, dst)
 			}
-		*/
+		}
 	}
 
 	// fmt.Println(minX, maxX, minY, maxY)
-
-	return
 
 	// fmt.Println(minX, maxX)
 	// fmt.Println(minY, maxY)
 }
 
-// 9_363_561_880
+func shouldSwap(a, b xy) bool {
+	if a.x < b.x && a.y < b.y {
+		return false
+	}
+
+	return a.x > b.x
+}
+
+// part 1:   4738108384
+// too high: 3067899254
+// too high: 3004559280
+// too low: 103294448
