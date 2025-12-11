@@ -10,36 +10,31 @@ import (
 	"github.com/mmcclimon/advent-2025/advent/input"
 )
 
-type Graph map[string][]string
+type Graph struct {
+	graph map[string][]string
+	topo  map[string]int
+}
 
 func main() {
-	graph := make(Graph)
+	graph := makeGraph()
 
-	for line := range input.New().Lines() {
-		fields := strings.Fields(line)
-		src := strings.Trim(fields[0], ":")
-		graph[src] = fields[1:]
-	}
-
-	topo := kahn(graph)
-
-	fmt.Println("part 1:", walk(graph, topo, "you", "out"))
+	fmt.Println("part 1:", graph.walk("you", "out"))
 
 	var wg sync.WaitGroup
 	var a, b, c int
 
 	wg.Go(func() {
-		a = walk(graph, topo, "svr", "fft")
+		a = graph.walk("svr", "fft")
 		fmt.Println("svr -> fft:", a)
 	})
 
 	wg.Go(func() {
-		b = walk(graph, topo, "fft", "dac")
+		b = graph.walk("fft", "dac")
 		fmt.Println("fft -> dac:", b)
 	})
 
 	wg.Go(func() {
-		c = walk(graph, topo, "dac", "out")
+		c = graph.walk("dac", "out")
 		fmt.Println("dac -> out:", c)
 	})
 
@@ -48,11 +43,27 @@ func main() {
 	fmt.Println("part 2:", a*b*c)
 }
 
+func makeGraph() Graph {
+	graph := make(map[string][]string)
+
+	for line := range input.New().Lines() {
+		fields := strings.Fields(line)
+		src := strings.Trim(fields[0], ":")
+		graph[src] = fields[1:]
+	}
+
+	return Graph{
+		graph: graph,
+		topo:  kahn(graph),
+	}
+
+}
+
 //nolint:unused
-func printDot(graph Graph) {
+func (g Graph) printDot() {
 	fmt.Println("digraph {")
 
-	for in, out := range graph {
+	for in, out := range g.graph {
 		for _, node := range out {
 			fmt.Printf("%s -> %s\n", in, node)
 		}
@@ -61,7 +72,7 @@ func printDot(graph Graph) {
 	fmt.Println("}")
 }
 
-func walk(g Graph, topo map[string]int, start, end string) int {
+func (g Graph) walk(start, end string) int {
 	s := collections.NewDeque[string]()
 	seen := collections.NewSet[string]()
 
@@ -73,7 +84,7 @@ func walk(g Graph, topo map[string]int, start, end string) int {
 		assert.Nil(err)
 
 		// prune: we can't ever get there from here.
-		if topo[node] > topo[end] {
+		if g.topo[node] > g.topo[end] {
 			continue
 		}
 
@@ -86,7 +97,7 @@ func walk(g Graph, topo map[string]int, start, end string) int {
 			seen.Add(node)
 		}
 
-		for _, other := range g[node] {
+		for _, other := range g.graph[node] {
 			s.Append(other)
 		}
 	}
@@ -95,7 +106,7 @@ func walk(g Graph, topo map[string]int, start, end string) int {
 }
 
 // This is a topological sort so we can prune the tree later.
-func kahn(g Graph) map[string]int {
+func kahn(g map[string][]string) map[string]int {
 	rev := make(map[string]collections.Set[string])
 
 	for k, v := range g {
